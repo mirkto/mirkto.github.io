@@ -1,6 +1,6 @@
 /* SmartRek service worker — network-first HTML + whisper-worker so Android gets latest Pages build. */
 /* Keep CACHE_ID in sync with web/src/lib/asset-version.ts SMARTREK_ASSET_VERSION. */
-const CACHE_ID = "smartrek-20261110-yandex1";
+const CACHE_ID = "smartrek-20261110-notip1";
 const STATIC_CACHE = `static-${CACHE_ID}`;
 
 self.addEventListener("install", (event) => {
