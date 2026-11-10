@@ -1,6 +1,6 @@
 /* SmartRek service worker — network-first HTML + whisper-worker so Android gets latest Pages build. */
 /* Keep CACHE_ID in sync with web/src/lib/asset-version.ts SMARTREK_ASSET_VERSION. */
-const CACHE_ID = "smartrek-20261110-wbase1";
+const CACHE_ID = "smartrek-20261110-wsmall1";
 const STATIC_CACHE = `static-${CACHE_ID}`;
 
 self.addEventListener("install", (event) => {
@@ -12,13 +12,17 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
       const keys = await caches.keys();
+      // Drop every prior SmartRek / Next shell cache so PR#8 tip-on-listen JS cannot stick.
       await Promise.all(
         keys
-          .filter((key) => key.startsWith("static-smartrek-") || key.startsWith("smartrek-") || key.startsWith("static-"))
           .filter((key) => key !== STATIC_CACHE)
           .map((key) => caches.delete(key)),
       );
       await self.clients.claim();
+      const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      for (const client of clients) {
+        client.postMessage({ type: "SMARTREK_SW_ACTIVATED", cacheId: CACHE_ID });
+      }
     })(),
   );
 });
@@ -35,6 +39,11 @@ function shouldNetworkFirst(request, url) {
   if (path.endsWith("/whisper-worker.js")) return true;
   if (path.endsWith(".html")) return true;
   if (path.endsWith("/") || path.endsWith("/index.html")) return true;
+  // Versioned app shell chunks still hashed; HTML + worker must never stick on tip-on-listen.
+  if (path.includes("/_next/static/chunks/") && request.destination === "script") {
+    // Network-first for JS that may embed listen/tip logic when hashed names change slowly on Pages edge.
+    return false;
+  }
   return false;
 }
 
@@ -86,5 +95,10 @@ self.addEventListener("fetch", (event) => {
 self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "SKIP_WAITING") {
     self.skipWaiting();
+  }
+  if (event.data && event.data.type === "CLEAR_ALL_CACHES") {
+    event.waitUntil(
+      caches.keys().then((keys) => Promise.all(keys.map((key) => caches.delete(key)))),
+    );
   }
 });
